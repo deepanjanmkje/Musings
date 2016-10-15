@@ -1,0 +1,176 @@
+<apex:page controller="AC_QuickUpdateCustomSettings" showHeader="false" sidebar="false">
+    <style>
+        .heading {font-size:1.3em; font-weight:bold; margin:8px 5px 5px 8px;}
+        .borderStyle {border:1px solid #E6E6E6; border-radius:5px;}
+        .LMargin20 {margin-left:20px;}
+        .TMargin10 {margin-top:10px;}
+        .TMargin20 {margin-top:20px;}
+        .BMargin20 {margin-bottom:20px;}
+        .hidden    {display:none;}
+        .display   {display:block;}
+        .pointer   {cursor:pointer;}
+    </style>
+    <apex:form >
+        <div class="borderStyle">
+            <div style="height:2px; background-color:gray;"/>
+            <div class="heading"> Quick Update Custom Settings </div>
+            <div id="outerDiv" class="TMargin20">
+                <input type="button" id="startBtn" class="btn" style="margin-left:20px;margin-bottom:20px;" value="Click to start updating Custom Settings"/>
+                <div id="mainDiv" class="hidden"></div>
+            </div>
+            <div id="secondaryDiv" class="LMargin20 hidden"></div>
+            <input type="button" id="nextBtn" class="LMargin20 TMargin20 BMargin20 hidden" value="Next"/>
+        </div> 
+    </apex:form>
+    <apex:includeScript value="{!URLFOR($Resource.jquery171min)}"/>
+    <apex:includeScript value="/support/console/28.0/integration.js"/>
+    <apex:includeScript value="{!URLFOR($Resource.forcetk)}"/>
+    <script>
+        var $j = jQuery.noConflict();
+        var SessionId      = "{!$Api.Session_ID}";
+        var selectedObject = '';
+        var noOfCSUpdates  = 0;
+        var mapCSObjects   = {};
+        var lstCSObjects   = [];
+        
+        $j(document).ready(function(){
+            var custObjName  = '{!custObjName}';
+            var custObjLabel = '{!custObjLabel}';
+            var lstCSNames   = replaceAll(custObjName);
+            var lstCSLabels  = replaceAll(custObjLabel);
+            for(var i=0; i<lstCSNames.length; i++){
+                mapCSObjects[lstCSNames[i].trim()] = lstCSLabels[i].trim();
+            }
+        });
+        
+        $j("#startBtn").on('click', function(){
+            $j("[id*='" + 'startBtn' + "']").hide();
+            $j("#mainDiv").removeClass("hidden");
+            addCSUpdateBlock();
+        });
+        
+        function addCSUpdateBlock(){
+            noOfCSUpdates++;
+            var csHtml = "";
+            csHtml     = "<div id='CSDiv"+ noOfCSUpdates +"' class='LMargin20'>";
+            csHtml    += "<span>Object Type</span>";
+            csHtml    += "<span>";
+            csHtml    += "<select size='1' id='selObject"+ noOfCSUpdates +"' data-count='"+ noOfCSUpdates +"'>";
+            csHtml    += "</select>";
+            csHtml    += "</span>";
+            csHtml    += "</span>";
+            csHtml    += "</div>";
+            csHtml    += "<div class='LMargin20'>";
+            csHtml    += "<input type='radio' id='multiRecordBtn"+ noOfCSUpdates +"' name='R"+ noOfCSUpdates +"' data-type='multi' data-count='"+ noOfCSUpdates +"'> Multiple Records </input>";
+            csHtml    += "<input type='file' name='filename"+ noOfCSUpdates +"' id='filename"+ noOfCSUpdates +"' data-count='"+ noOfCSUpdates +"' onchange='readCSVData(this)'/>"
+            csHtml    += "</div>";
+            $j("#mainDiv").html(csHtml);
+            var emptyOption = '<option value="Select" selected="true" data-count="'+ noOfCSUpdates +'">Select</option>';
+            $j("[id*='" + 'selObject' + "']").prepend(emptyOption)
+            $j.each(mapCSObjects, function(key, value){
+                $j("#selObject"+ noOfCSUpdates).append($j("<option></option>").attr("value", key).text(value).data("count",noOfCSUpdates));
+            });
+            $j("#nextBtn").removeClass("hidden");
+            disableAll(noOfCSUpdates);
+        }
+        
+        function disableAll(count){
+            // Disable all radio buttons on page load
+            $j("[id*='" + 'multiRecordBtn' + count + "']").attr('disabled','disabled');
+            $j("[id*='" + 'filename' + count + "']").attr('disabled','disabled');
+        }
+        
+        $j("#mainDiv").on('change', 'select', function(){
+            var eleCount = $j(this).find(":selected").data("count");
+            if($j(this).find(":selected").attr("value") != 'Select'){
+                $j("[id*='" + 'multiRecordBtn' + eleCount + "']").removeAttr('disabled');
+                $j("[id*='" + 'filename' + eleCount + "']").removeAttr('disabled');
+            }
+            else{
+                disableAll(eleCount);
+            }
+            selectedObject = $j(this).find(":selected").attr("value");
+        });
+        
+        $j("#nextBtn").on('click', function(){
+            //validateData();
+            //$j(location).attr('href','https://www.google.com');
+        });
+        
+        function validateData(){
+            var eleCount   = $j("#mainDiv input[type=radio]:checked").data("count");
+            var recordList = [];
+            recordList.push(recordName);
+            loadRecordData(recordList);
+        }
+        
+        function loadRecordData(recordList){
+            if(recordList.length == 1){
+                queryRecordData(recordList);
+            }           
+        }
+        
+        function queryRecordData(recordList){
+            var recordId = recordList[0];
+            var query  = "SELECT Name FROM " + selectedObject;
+            query     += " WHERE Id = '" + recordId + "' LIMIT 1";
+            var client = new forcetk.Client();
+            client.setSessionToken(SessionId);
+            client.query(query, function(response){
+                console.log(response);
+            },errorCallBack);
+        }
+        
+        function errorCallBack(jqXHR){
+            console.log(jqXHR);
+        }
+        
+        function replaceAll(array){
+            array = array.replace('[','');
+            array = array.replace(']','');
+            array = array.split(',');
+            return array;
+        }
+        
+        function readCSVData(ele){    
+            var ext = ele.value.split(".").pop().toLowerCase();
+        
+            if($j.inArray(ext, ["csv"]) == -1) {
+                alert('Upload CSV');
+                return false;
+            }
+                
+            if (ele.files != undefined) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var csvval = e.target.result.split("\n");
+                    console.log(csvval);
+                    console.log(csvval.length);
+                                   
+                    var fieldList = [];
+                    fieldList.push(csvval[0].split(','));
+                    var mainMap = {};
+                    
+                    for(var i=1;i<csvval.length-1;i++){
+                        var valueList = [];
+                        valueList.push(csvval[i].split(','));
+                        var fieldValueMap = {};
+                        for(var j=0;j<valueList[0].length;j++){                       
+                            console.log(valueList[j]);
+                            fieldValueMap[fieldList[0][j]] = valueList[0][j];                       
+                        }
+                        mainMap[valueList[0][0]] = fieldValueMap;
+                        console.log(mainMap);
+                    }                    
+                };
+                reader.readAsText(ele.files.item(0));
+            }
+            if(typeof mainMap != 'undefined'){
+                lstCSObjects.push(mainMap);
+                console.log(lstCSObjects);
+            }
+            return false;    
+        //});
+        }
+    </script>
+</apex:page>
